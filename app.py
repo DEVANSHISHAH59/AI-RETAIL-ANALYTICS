@@ -1,3 +1,4 @@
+st.write("Version 2 deployed 🚀")
 import io
 import numpy as np
 import pandas as pd
