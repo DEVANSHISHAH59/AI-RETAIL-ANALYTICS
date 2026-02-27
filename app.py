@@ -31,7 +31,7 @@ def _hash(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 # Change these if you want
-APP_USERNAME = "admin"
+APP_USERNAME = "AI"
 APP_PASSWORD_HASH = _hash("1234")  # password = 1234
 
 
