@@ -1,8 +1,9 @@
-import hashlib
 import numpy as np
 import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
+
+from pathlib import Path
 
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
@@ -23,45 +24,6 @@ st.caption("Premium dashboard: RFM Segmentation + Market Basket Analysis (Online
 
 
 # =========================================================
-# SIMPLE AUTH
-# =========================================================
-def _hash(text: str) -> str:
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
-
-APP_USERNAME = "AI"
-APP_PASSWORD_HASH = _hash("1234")  # password: 1234
-
-def login_required() -> bool:
-    if "logged_in" not in st.session_state:
-        st.session_state.logged_in = False
-
-    with st.sidebar:
-        st.markdown("## 🔒 Login")
-        u = st.text_input("Username")
-        p = st.text_input("Password", type="password")
-        btn = st.button("Login", use_container_width=True)
-
-        if btn:
-            if u == APP_USERNAME and _hash(p) == APP_PASSWORD_HASH:
-                st.session_state.logged_in = True
-                st.success("✅ Logged in")
-            else:
-                st.error("❌ Wrong username or password")
-
-    return st.session_state.logged_in
-
-if not login_required():
-    st.info("Please login from the sidebar to use the app.")
-    st.stop()
-
-with st.sidebar:
-    st.divider()
-    if st.button("Logout", use_container_width=True):
-        st.session_state.logged_in = False
-        st.rerun()
-
-
-# =========================================================
 # HELPERS
 # =========================================================
 def read_file(uploaded_file) -> pd.DataFrame:
@@ -71,6 +33,31 @@ def read_file(uploaded_file) -> pd.DataFrame:
     if name.endswith(".xlsx") or name.endswith(".xls"):
         return pd.read_excel(uploaded_file)
     raise ValueError("Upload CSV or Excel only.")
+
+
+def load_demo_or_upload(key: str, label: str) -> pd.DataFrame:
+    """
+    Loads a demo dataset from repo (data/Online Retail.xlsx) OR allows file upload.
+    """
+    demo_path = Path(__file__).resolve().parent / "data" / "Online Retail.xlsx"
+
+    with st.sidebar:
+        st.markdown("### 📂 Dataset")
+        use_demo = st.checkbox("✅ Use demo dataset (Online Retail)", value=True, key=f"demo_{key}")
+        up = None if use_demo else st.file_uploader(label, type=["csv", "xlsx", "xls"], key=key)
+
+    if use_demo:
+        if not demo_path.exists():
+            st.error("Demo dataset not found. Upload it to GitHub at: `data/Online Retail.xlsx`")
+            st.stop()
+        return pd.read_excel(demo_path)
+
+    if up is None:
+        st.info("Upload the Online Retail dataset to begin, or turn ON the demo dataset checkbox.")
+        st.stop()
+
+    return read_file(up)
+
 
 def kpi_card(label: str, value: str):
     st.markdown(
@@ -87,6 +74,7 @@ def kpi_card(label: str, value: str):
         unsafe_allow_html=True
     )
 
+
 def download_csv_button(df: pd.DataFrame, label: str, filename: str):
     st.download_button(
         label=label,
@@ -95,6 +83,7 @@ def download_csv_button(df: pd.DataFrame, label: str, filename: str):
         mime="text/csv",
         use_container_width=True
     )
+
 
 def safe_cluster_metrics(X_scaled: np.ndarray, labels: np.ndarray):
     uniq = np.unique(labels)
@@ -114,6 +103,7 @@ def safe_cluster_metrics(X_scaled: np.ndarray, labels: np.ndarray):
 
     return silhouette_score(X_scaled, labels), davies_bouldin_score(X_scaled, labels)
 
+
 def quality_bar(label: str, value: float, mode="high"):
     st.markdown(f"**{label}**")
     if value is None:
@@ -130,6 +120,7 @@ def quality_bar(label: str, value: float, mode="high"):
     normalized = float(np.clip(normalized, 0, 1))
     st.progress(normalized)
     st.caption(f"Score: {value:.3f}")
+
 
 def plot_pca_scatter(X_scaled: np.ndarray, labels: np.ndarray, title: str, label_map: dict | None = None):
     pca = PCA(n_components=2, random_state=42)
@@ -150,12 +141,14 @@ def plot_pca_scatter(X_scaled: np.ndarray, labels: np.ndarray, title: str, label
     ax.legend(title="Cluster", bbox_to_anchor=(1.05, 1), loc="upper left")
     st.pyplot(fig, clear_figure=True)
 
+
 def rules_strength_bar(conf: float, lift: float):
     lift_norm = min(lift, 5.0) / 5.0
     strength = 0.6 * conf + 0.4 * lift_norm
     strength = float(np.clip(strength, 0, 1))
     st.progress(strength)
     st.caption(f"Strength ≈ {strength:.2f} (confidence={conf:.2f}, lift={lift:.2f})")
+
 
 def name_clusters(rfm_df: pd.DataFrame, cluster_col="cluster") -> pd.DataFrame:
     """
@@ -193,6 +186,7 @@ def name_clusters(rfm_df: pd.DataFrame, cluster_col="cluster") -> pd.DataFrame:
     out["cluster_name"] = out[cluster_col].apply(lambda x: names.get(int(x), "Unknown"))
     return out
 
+
 def cluster_recommendation(name: str) -> str:
     n = name.lower()
     if "vip" in n or "champion" in n:
@@ -209,6 +203,7 @@ def cluster_recommendation(name: str) -> str:
         return "🪙 Promote bundle deals and price-sensitive campaigns."
     return "📊 Monitor behavior and personalize marketing based on engagement patterns."
 
+
 def cluster_badge(name: str) -> str:
     n = name.lower()
     if "vip" in n or "champion" in n:
@@ -224,6 +219,7 @@ def cluster_badge(name: str) -> str:
     if "budget" in n or "occasional" in n:
         return "🪙"
     return "🏷️"
+
 
 def cluster_profit_table(rfm_out: pd.DataFrame, margin: float, cost_per_customer: float, target_rate: float):
     total_rev = float(rfm_out["Monetary"].sum())
@@ -270,17 +266,9 @@ with st.sidebar:
 # =========================================================
 if page.startswith("👥"):
     st.markdown("## 👥 Customer Segmentation (RFM + Clustering)")
-    st.write("Upload Online Retail dataset. The app auto-generates **RFM** per customer, then clusters customers and produces executive insights.")
+    st.write("Uses the Online Retail dataset to build **RFM** features and cluster customers into actionable segments.")
 
-    with st.sidebar:
-        st.markdown("### 📂 Upload Dataset")
-        up = st.file_uploader("Upload Online Retail CSV/XLSX", type=["csv", "xlsx", "xls"], key="rfm_upload")
-
-    if up is None:
-        st.info("Upload the Online Retail dataset to begin.")
-        st.stop()
-
-    df = read_file(up)
+    df = load_demo_or_upload("rfm_upload", "Upload Online Retail CSV/XLSX")
 
     required = ["InvoiceNo", "Description", "Quantity", "InvoiceDate", "UnitPrice", "CustomerID"]
     missing = [c for c in required if c not in df.columns]
@@ -294,12 +282,8 @@ if page.startswith("👥"):
     df = df.dropna(subset=["InvoiceDate"])
     df["CustomerID"] = df["CustomerID"].astype(int)
 
-    # Remove cancelled invoices commonly starting with "C"
     df = df[~df["InvoiceNo"].astype(str).str.startswith("C")]
-
-    # Remove invalid quantities/prices
     df = df[(df["Quantity"].astype(float) > 0) & (df["UnitPrice"].astype(float) > 0)]
-
     df["Revenue"] = df["Quantity"].astype(float) * df["UnitPrice"].astype(float)
 
     # KPIs
@@ -318,17 +302,14 @@ if page.startswith("👥"):
     st.dataframe(df.head(12), use_container_width=True)
 
     # Build RFM
-    st.markdown("### 🧾 Build RFM Features")
-    st.caption("Recency = days since last purchase | Frequency = number of invoices | Monetary = total spend")
-
     snapshot_date = df["InvoiceDate"].max() + pd.Timedelta(days=1)
-
     rfm = df.groupby("CustomerID").agg(
         Recency=("InvoiceDate", lambda x: (snapshot_date - x.max()).days),
         Frequency=("InvoiceNo", "nunique"),
         Monetary=("Revenue", "sum")
     ).reset_index()
 
+    st.markdown("### 🧾 RFM Table")
     st.dataframe(rfm.head(10), use_container_width=True)
 
     # Sidebar clustering controls
@@ -377,11 +358,8 @@ if page.startswith("👥"):
 
     rfm_out = rfm.copy()
     rfm_out["cluster"] = labels
-
-    # Add names
     rfm_out = name_clusters(rfm_out, cluster_col="cluster")
 
-    # Metrics
     sil, dbi = safe_cluster_metrics(X_scaled, labels)
 
     st.markdown("### ✅ Clustering Results")
@@ -395,7 +373,6 @@ if page.startswith("👥"):
     with c1: quality_bar("Silhouette (higher is better)", sil, mode="high")
     with c2: quality_bar("Davies–Bouldin (lower is better)", dbi, mode="low")
 
-    # Cluster cards + actions
     st.markdown("### 🏷️ Cluster Cards & Recommended Actions")
     cards_df = (
         rfm_out.groupby(["cluster", "cluster_name"])
@@ -447,136 +424,12 @@ if page.startswith("👥"):
                 unsafe_allow_html=True
             )
 
-    # Named summary table
-    st.markdown("### 🧾 Cluster Name Summary")
-    st.dataframe(
-        rfm_out.groupby(["cluster", "cluster_name"])[["Recency", "Frequency", "Monetary"]]
-        .mean()
-        .round(2)
-        .reset_index()
-        .sort_values("Monetary", ascending=False),
-        use_container_width=True
-    )
-
-    # PCA legend with names
     st.markdown("### 🗺️ PCA Visualization")
     label_map = rfm_out.groupby("cluster")["cluster_name"].first().to_dict()
     plot_pca_scatter(X_scaled, labels, f"{algo} — RFM PCA Scatter", label_map=label_map)
 
-    # Profitability + revenue contribution
-    st.markdown("## 💰 Cluster Profitability & Revenue Contribution")
-    colA, colB, colC = st.columns(3)
-    with colA:
-        gross_margin = st.slider("Gross margin (%)", 0, 90, 35) / 100.0
-    with colB:
-        cost_per_customer = st.number_input("Campaign cost per targeted customer (£)", min_value=0.0, value=2.0, step=0.5)
-    with colC:
-        target_rate = st.slider("Target rate (share of customers targeted)", 0.0, 1.0, 0.30)
-
-    profit_tbl = cluster_profit_table(
-        rfm_out=rfm_out,
-        margin=gross_margin,
-        cost_per_customer=cost_per_customer,
-        target_rate=target_rate
-    )
-
-    st.markdown("### 📊 Revenue contribution by cluster")
-    show_cols = [
-        "cluster", "cluster_name", "customers",
-        "revenue", "revenue_pct", "gross_profit", "campaign_cost", "net_profit_baseline"
-    ]
-    st.dataframe(
-        profit_tbl[show_cols].round({
-            "revenue": 0,
-            "revenue_pct": 2,
-            "gross_profit": 0,
-            "campaign_cost": 0,
-            "net_profit_baseline": 0
-        }),
-        use_container_width=True
-    )
-
-    st.markdown("### 🏆 Top clusters by revenue")
-    top = profit_tbl.head(3).copy()
-    t1, t2, t3 = st.columns(3)
-    tcols = [t1, t2, t3]
-    for i in range(min(3, len(top))):
-        r = top.iloc[i]
-        with tcols[i]:
-            st.metric(
-                label=f"{r['cluster_name']} (C{int(r['cluster'])})",
-                value=f"£ {r['revenue']:,.0f}",
-                delta=f"{r['revenue_pct']:.1f}% of revenue"
-            )
-
-    # ROI simulator
-    st.markdown("## 📈 Marketing ROI Simulator")
-    st.caption(
-        "Estimates ROI using simple assumptions: target a fraction of customers, a % respond, and responders spend more."
-    )
-
-    s1, s2, s3, s4 = st.columns(4)
-    with s1:
-        response_rate = st.slider("Response rate (of targeted)", 0.0, 1.0, 0.10)
-    with s2:
-        uplift_pct = st.slider("Spend uplift for responders (%)", 0, 200, 20) / 100.0
-    with s3:
-        discount_pct = st.slider("Discount cost (% of incremental revenue)", 0, 80, 10) / 100.0
-    with s4:
-        fixed_campaign_cost = st.number_input("Fixed campaign cost (£)", min_value=0.0, value=0.0, step=50.0)
-
-    roi_tbl = profit_tbl.copy()
-    roi_tbl["responders"] = (roi_tbl["targeted_customers"] * response_rate).round().astype(int)
-    roi_tbl["incr_rev"] = roi_tbl["responders"] * (roi_tbl["avg_revenue"] * uplift_pct)
-    roi_tbl["discount_cost"] = roi_tbl["incr_rev"] * discount_pct
-    roi_tbl["incr_gross_profit"] = roi_tbl["incr_rev"] * gross_margin
-    roi_tbl["incr_net_profit"] = roi_tbl["incr_gross_profit"] - roi_tbl["discount_cost"] - roi_tbl["campaign_cost"]
-
-    total_responders = int(roi_tbl["responders"].sum())
-    if total_responders > 0:
-        roi_tbl["fixed_cost_alloc"] = fixed_campaign_cost * (roi_tbl["responders"] / total_responders)
-    else:
-        roi_tbl["fixed_cost_alloc"] = fixed_campaign_cost / max(len(roi_tbl), 1)
-
-    roi_tbl["incr_net_profit_after_fixed"] = roi_tbl["incr_net_profit"] - roi_tbl["fixed_cost_alloc"]
-    roi_tbl["total_cost"] = roi_tbl["campaign_cost"] + roi_tbl["discount_cost"] + roi_tbl["fixed_cost_alloc"]
-    roi_tbl["roi"] = np.where(roi_tbl["total_cost"] > 0, roi_tbl["incr_net_profit_after_fixed"] / roi_tbl["total_cost"], np.nan)
-
-    st.markdown("### ✅ ROI results by cluster")
-    roi_show = roi_tbl[[
-        "cluster", "cluster_name", "targeted_customers", "responders",
-        "incr_rev", "discount_cost", "campaign_cost", "fixed_cost_alloc",
-        "incr_net_profit_after_fixed", "roi"
-    ]].copy()
-
-    st.dataframe(
-        roi_show.round({
-            "incr_rev": 0,
-            "discount_cost": 0,
-            "campaign_cost": 0,
-            "fixed_cost_alloc": 0,
-            "incr_net_profit_after_fixed": 0,
-            "roi": 2
-        }),
-        use_container_width=True
-    )
-
-    total_incr_rev = float(roi_tbl["incr_rev"].sum())
-    total_cost = float(roi_tbl["total_cost"].sum())
-    total_profit = float(roi_tbl["incr_net_profit_after_fixed"].sum())
-    overall_roi = (total_profit / total_cost) if total_cost > 0 else None
-
-    st.markdown("### 🧾 Campaign summary")
-    cA, cB, cC, cD = st.columns(4)
-    cA.metric("Incremental revenue", f"£ {total_incr_rev:,.0f}")
-    cB.metric("Total cost", f"£ {total_cost:,.0f}")
-    cC.metric("Incremental profit", f"£ {total_profit:,.0f}")
-    cD.metric("Overall ROI", "N/A" if overall_roi is None else f"{overall_roi:.2f}x")
-
     st.markdown("### 📥 Downloads")
     download_csv_button(rfm_out, "⬇️ Download RFM + Clustered Customers (CSV)", "rfm_clusters.csv")
-    download_csv_button(profit_tbl, "⬇️ Download profitability table (CSV)", "cluster_profitability.csv")
-    download_csv_button(roi_tbl, "⬇️ Download ROI simulation table (CSV)", "cluster_roi_simulation.csv")
 
 
 # =========================================================
@@ -584,29 +437,18 @@ if page.startswith("👥"):
 # =========================================================
 else:
     st.markdown("## 🧺 Association Rules (Market Basket)")
-    st.write("Upload Online Retail dataset. The app builds baskets by **InvoiceNo** and generates association rules.")
+    st.write("Uses the Online Retail dataset to generate association rules using Apriori / FP-Growth.")
 
-    with st.sidebar:
-        st.markdown("### 📂 Upload Dataset")
-        up = st.file_uploader("Upload Online Retail CSV/XLSX", type=["csv", "xlsx", "xls"], key="mba_upload")
+    df = load_demo_or_upload("mba_upload", "Upload Online Retail CSV/XLSX")
 
-    if up is None:
-        st.info("Upload the Online Retail dataset to begin.")
-        st.stop()
-
-    df = read_file(up)
-
-    required = ["InvoiceNo", "Description", "Quantity", "InvoiceDate", "UnitPrice", "CustomerID"]
+    required = ["InvoiceNo", "Description"]
     missing = [c for c in required if c not in df.columns]
     if missing:
         st.error(f"Missing columns: {missing}. Please upload the correct Online Retail dataset.")
         st.stop()
 
-    # Clean
     df = df.dropna(subset=["InvoiceNo", "Description"])
     df["Description"] = df["Description"].astype(str).str.strip()
-
-    # Remove cancelled invoices
     df = df[~df["InvoiceNo"].astype(str).str.startswith("C")]
 
     st.markdown("### 👀 Preview")
@@ -626,18 +468,10 @@ else:
 
     baskets = df.groupby("InvoiceNo")["Description"].apply(list).tolist()
 
-    st.markdown("### ✅ Basket Summary")
-    s1, s2, s3 = st.columns(3)
-    s1.metric("Rows", f"{len(df):,}")
-    s2.metric("Invoices (Baskets)", f"{len(baskets):,}")
-    s3.metric("Unique Items", f"{df['Description'].nunique():,}")
-
-    # One-hot encoding
     te = TransactionEncoder()
     arr = te.fit(baskets).transform(baskets)
     onehot = pd.DataFrame(arr, columns=te.columns_)
 
-    # Frequent itemsets
     if algo == "Apriori":
         freq = apriori(onehot, min_support=min_support, use_colnames=True)
     else:
@@ -652,7 +486,6 @@ else:
     st.markdown("### 📦 Top Frequent Itemsets")
     st.dataframe(freq.head(20), use_container_width=True)
 
-    # Rules
     rules = association_rules(freq, metric="confidence", min_threshold=min_conf)
     rules = rules[rules["lift"] >= min_lift].sort_values(["lift", "confidence"], ascending=False)
 
@@ -675,21 +508,6 @@ else:
     top_rule = rules_disp.iloc[0]
     st.write(f"**Top Rule:** `{top_rule['antecedents']}` → `{top_rule['consequents']}`")
     rules_strength_bar(float(top_rule["confidence"]), float(top_rule["lift"]))
-
-    st.markdown("### 🧠 Top Drivers (Feature-Importance Style)")
-    tmp = rules_disp.copy()
-    tmp["driver"] = tmp["antecedents"].apply(lambda s: s.split(",")[0].strip())
-    driver_strength = tmp.groupby("driver")[["lift", "confidence"]].mean().sort_values("lift", ascending=False).head(10)
-
-    st.dataframe(driver_strength.round(3), use_container_width=True)
-
-    fig, ax = plt.subplots()
-    ax.bar(driver_strength.index.astype(str), driver_strength["lift"].values)
-    ax.set_title("Top Drivers by Avg Lift")
-    ax.set_xlabel("Driver Item")
-    ax.set_ylabel("Avg Lift")
-    plt.xticks(rotation=45, ha="right")
-    st.pyplot(fig, clear_figure=True)
 
     st.markdown("### 📥 Download")
     download_csv_button(rules_disp, "⬇️ Download Association Rules (CSV)", "association_rules.csv")
