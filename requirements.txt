@@ -5,3 +5,5 @@ matplotlib
 scikit-learn
 mlxtend
 openpyxl
+altair
+networkx
