@@ -1,34 +1,50 @@
-# AI Retail Analytics 🛒
-Customer Segmentation + Market Basket Analysis using clustering and association rule mining.
+AI Retail Analytics Dashboard
 
-## Methods
-### Clustering
-- K-Means
-- Hierarchical (Agglomerative)
-- Gaussian Mixture Models (GMM)
-- DBSCAN
+An interactive dashboard exploring customer purchasing behaviour.
 
-### Association Rule Mining
-- Apriori
-- FP-Growth  
-(Produces rules with support, confidence, lift)
+Retail companies often collect large transaction datasets but struggle to answer questions such as:
 
-## Streamlit App
-### Customer Segmentation tab
-Upload a customer-level dataset (CSV/XLSX) with numeric features (e.g., RFM).
-- Select features
-- Run clustering
-- View PCA plot
-- See Silhouette + Davies–Bouldin scores
-- Download clustered results
+who their most valuable customers are
 
-### Association Rules tab
-Upload a transaction-level dataset (CSV/XLSX) with:
-- Transaction ID column (e.g., InvoiceNo)
-- Item column (e.g., Description)
-Generate frequent itemsets + rules and download to CSV.
+what products are frequently bought together
 
-## Run locally
-```bash
-pip install -r requirements.txt
-streamlit run app.py
+how customer segments differ
+
+This project explores those questions using machine learning and visual analytics.
+
+What the dashboard shows
+
+The app allows users to explore a retail dataset and analyse customer behaviour.
+
+Key features include:
+
+Customer segmentation
+Customers are grouped using clustering based on spending and purchase behaviour.
+
+Market basket analysis
+Association rules identify products that are commonly purchased together.
+
+Interactive visualisations
+Charts and tables make it easier to understand customer patterns.
+
+Example insights
+
+The dashboard can reveal patterns such as:
+
+• frequent high-value buyers
+• occasional customers with low spending
+• product combinations often bought together
+
+These insights can help guide marketing campaigns and product recommendations.
+
+Technology
+
+Python
+Streamlit
+Scikit-learn
+Mlxtend
+Data visualisation
+
+Live Demo
+
+https://ai-retail-analytics-vqppazwcawhihgyyy6dkei.streamlit.app/
